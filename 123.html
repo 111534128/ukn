@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simon 記憶遊戲</title>
+
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #333;
+            color: white;
+            padding: 20px;
+        }
+
+        h1 {
+            margin-bottom: 30px;
+        }
+
+        /* 外層遊戲容器：2x2 色塊 */
+        #game-container {
+            position: relative;              /* 讓內部中心面板可以 absolute 定位 */
+            display: grid;
+            grid-template-columns: 150px 150px; /* 300x300 的遊戲區域 */
+            grid-template-rows: 150px 150px;
+            gap: 10px;
+            width: max-content;
+        }
+
+        .quadrant {
+            width: 150px;
+            height: 150px;
+            cursor: pointer;
+            border: 5px solid #111;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            opacity: 0.7;
+            transition: opacity 0.2s, box-shadow 0.2s;
+        }
+
+        /* 四種顏色 */
+        #green {
+            background-color: #008000;
+            border-top-left-radius: 100%;
+        }
+
+        #red {
+            background-color: #cc0000;
+            border-top-right-radius: 100%;
+        }
+
+        #yellow {
+            background-color: #cccc00;
+            border-bottom-left-radius: 100%;
+        }
+
+        #blue {
+            background-color: #0000cc;
+            border-bottom-right-radius: 100%;
+        }
+
+        /* 閃爍時的效果 */
+        .quadrant.active {
+            opacity: 1.0;
+            box-shadow: 0 0 20px 5px white;
+        }
+
+        /* 中央圓形面板 */
+        #center-panel {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 150px;
+            height: 150px;
+            background-color: #222;
+            color: #fff;
+            border-radius: 50%;
+            border: 10px solid #555;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+        }
+
+        #center-panel p {
+            margin: 5px 0;
+        }
+
+        #start-button {
+            padding: 10px 15px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+
+        /* disabled 狀態 */
+        #start-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #message {
+            color: #ff4136;
+            margin-top: 20px;
+            min-height: 1.5em;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Simon 記憶遊戲</h1>
+
+    <div id="game-container">
+        <div id="green" class="quadrant" data-color="green"></div>
+        <div id="red" class="quadrant" data-color="red"></div>
+        <div id="yellow" class="quadrant" data-color="yellow"></div>
+        <div id="blue" class="quadrant" data-color="blue"></div>
+
+        <div id="center-panel">
+            <p>關卡: <span id="level">1</span></p>
+            <button id="start-button">開始遊戲</button>
+        </div>
+    </div>
+
+    <h2 id="message"></h2>
+
+    <script>
+        const colors = ['green', 'red', 'yellow', 'blue'];
+        const quadrants = document.querySelectorAll('.quadrant');
+        const startButton = document.getElementById('start-button');
+        const levelDisplay = document.getElementById('level');
+        const messageDisplay = document.getElementById('message');
+
+        let gameSequence = [];   // 電腦生成的序列
+        let playerSequence = []; // 玩家點擊的序列
+        let level = 1;
+        let canClick = false;    // 控制玩家是否能點擊
+        let timeOut = 600;       // 閃爍時間 (ms)
+
+        // 1. 閃爍單一顏色
+        function flashColor(color) {
+            const element = document.getElementById(color);
+            element.classList.add('active');
+
+            setTimeout(() => {
+                element.classList.remove('active');
+            }, timeOut - 100);
+        }
+
+        // 2. 電腦播放整個序列
+        function playSequence() {
+            canClick = false; // 播放時禁止玩家點擊
+            let delay = 0;
+
+            gameSequence.forEach((color) => {
+                setTimeout(() => {
+                    flashColor(color);
+                }, delay);
+
+                delay += timeOut + 50;
+            });
+
+            setTimeout(() => {
+                messageDisplay.textContent = '請重複序列...';
+                canClick = true;
+            }, delay);
+        }
+
+        // 3. 推進到下一關
+        function nextRound() {
+            playerSequence = [];
+            levelDisplay.textContent = level;
+            messageDisplay.textContent = '電腦正在思考...';
+
+            // 隨機新增一個顏色到序列末尾
+            const randomColor = colors[Math.floor(Math.random() * colors.length)];
+            gameSequence.push(randomColor);
+
+            // 播放序列
+            setTimeout(playSequence, 1000);
+        }
+
+        // 4. 檢查玩家點擊
+        function checkPlayerInput(color) {
+            if (!canClick) return;
+
+            playerSequence.push(color);
+            flashColor(color); // 玩家點擊時也閃爍
+
+            const currentInputIndex = playerSequence.length - 1;
+
+            // 檢查是否按錯
+            if (playerSequence[currentInputIndex] !== gameSequence[currentInputIndex]) {
+                gameOver();
+                return;
+            }
+
+            // 如果目前都正確，並且也完成了整段序列
+            if (playerSequence.length === gameSequence.length) {
+                level++;
+                messageDisplay.textContent = '✅ 正確！進入下一關...';
+                setTimeout(nextRound, 1500);
+            }
+        }
+
+        // 5. 遊戲結束
+        function gameOver() {
+            canClick = false;
+            messageDisplay.textContent = `❌ 錯誤！遊戲結束。你在第 ${level} 關失敗了。`;
+            startButton.textContent = '再玩一次';
+            startButton.disabled = false;
+        }
+
+        // 6. 初始化遊戲
+        function startGame() {
+            startButton.disabled = true;
+            messageDisplay.textContent = '';
+            gameSequence = [];
+            playerSequence = [];
+            level = 1;
+            canClick = false;
+            nextRound();
+        }
+
+        // 啟動按鈕
+        startButton.addEventListener('click', startGame);
+
+        // 顏色按鈕點擊
+        quadrants.forEach(quadrant => {
+            quadrant.addEventListener('click', (e) => {
+                if (canClick) {
+                    checkPlayerInput(e.target.dataset.color);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
